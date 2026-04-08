@@ -48,7 +48,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
   },
 
   createSession: async (workDir?: string) => {
-    const { sessionId: id } = await sessionsApi.create(workDir ?? '.')
+    const { sessionId: id } = await sessionsApi.create(workDir || undefined)
     // Refresh session list
     await get().fetchSessions()
     set({ activeSessionId: id })

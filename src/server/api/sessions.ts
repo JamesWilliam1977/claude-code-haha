@@ -154,8 +154,8 @@ async function createSession(req: Request): Promise<Response> {
     throw ApiError.badRequest('Invalid JSON body')
   }
 
-  if (!body.workDir || typeof body.workDir !== 'string') {
-    throw ApiError.badRequest('workDir (string) is required in request body')
+  if (body.workDir && typeof body.workDir !== 'string') {
+    throw ApiError.badRequest('workDir must be a string')
   }
 
   const result = await sessionService.createSession(body.workDir)

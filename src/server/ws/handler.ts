@@ -8,6 +8,7 @@
 
 import type { ServerWebSocket } from 'bun'
 import type { ClientMessage, ServerMessage } from './events.js'
+import * as os from 'node:os'
 import {
   ConversationStartupError,
   conversationService,
@@ -152,7 +153,7 @@ async function handleUserMessage(
   message: Extract<ClientMessage, { type: 'user_message' }>
 ) {
   const { sessionId } = ws.data
-  let workDir = process.cwd()
+  let workDir = os.homedir()
 
   // Send thinking status
   sendMessage(ws, { type: 'status', state: 'thinking', verb: 'Thinking' })

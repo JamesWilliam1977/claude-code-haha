@@ -470,13 +470,12 @@ export class SessionService {
   /**
    * Create a new session file for the given working directory.
    */
-  async createSession(workDir: string): Promise<{ sessionId: string }> {
-    if (!workDir) {
-      throw ApiError.badRequest('workDir is required')
-    }
+  async createSession(workDir?: string): Promise<{ sessionId: string }> {
+    // Default to user home directory when no workDir specified
+    const resolvedWorkDir = workDir || os.homedir()
 
     // Resolve to absolute path
-    const absWorkDir = path.resolve(workDir)
+    const absWorkDir = path.resolve(resolvedWorkDir)
     let stat
     try {
       stat = await fs.stat(absWorkDir)

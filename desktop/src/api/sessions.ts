@@ -30,8 +30,8 @@ export const sessionsApi = {
     return api.get<MessagesResponse>(`/api/sessions/${sessionId}/messages`)
   },
 
-  create(workDir: string) {
-    return api.post<CreateSessionResponse>('/api/sessions', { workDir })
+  create(workDir?: string) {
+    return api.post<CreateSessionResponse>('/api/sessions', workDir ? { workDir } : {})
   },
 
   delete(sessionId: string) {
