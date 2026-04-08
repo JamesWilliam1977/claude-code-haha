@@ -16,6 +16,7 @@ import { loadConfig } from '../common/config.js'
 import { splitMessage, formatToolUse, formatPermissionRequest, truncateInput } from '../common/format.js'
 import { SessionStore } from '../common/session-store.js'
 import { AdapterHttpClient } from '../common/http-client.js'
+import { isPaired, tryPair } from '../common/pairing.js'
 
 // ---------- init ----------
 
@@ -55,9 +56,21 @@ let wsClient: InstanceType<typeof Lark.WSClient> | null = null
 
 // ---------- helpers ----------
 
-function isAllowed(openId: string): boolean {
-  const list = config.feishu.allowedUsers
-  return list.length === 0 || list.includes(openId)
+function isAllowedUser(openId: string): boolean {
+  try {
+    const cfgFile = JSON.parse(
+      require('node:fs').readFileSync(
+        require('node:path').join(
+          process.env.CLAUDE_CONFIG_DIR || require('node:path').join(require('node:os').homedir(), '.claude'),
+          'adapters.json'
+        ),
+        'utf-8'
+      )
+    )
+    return isPaired('feishu', openId, cfgFile)
+  } catch {
+    return false
+  }
 }
 
 function getChatState(chatId: string): ChatState {
@@ -384,10 +397,25 @@ async function handleMessage(data: any): Promise<void> {
   if (!messageId || !chatId || !senderOpenId || !content || !msgType) return
 
   if (!dedup.tryRecord(messageId)) return
-  if (!isAllowed(senderOpenId)) return
 
-  if (chatType === 'group') {
-    if (!isBotMentioned(event.message?.mentions)) return
+  // 只处理私聊
+  if (chatType === 'p2p') {
+    if (!isAllowedUser(senderOpenId)) {
+      // 尝试配对
+      const pairText = extractText(content, msgType)
+      if (pairText) {
+        const success = tryPair(pairText.trim(), { userId: senderOpenId, displayName: 'Feishu User' }, 'feishu')
+        if (success) {
+          await sendText(chatId, '✅ 配对成功！现在可以开始聊天了。\n\n发送消息即可与 Claude 对话。')
+        } else {
+          await sendText(chatId, '🔒 未授权。请在 Claude Code 桌面端生成配对码后发送给我。')
+        }
+      }
+      return
+    }
+  } else {
+    // 群聊不处理
+    return
   }
 
   let text = extractText(content, msgType)
