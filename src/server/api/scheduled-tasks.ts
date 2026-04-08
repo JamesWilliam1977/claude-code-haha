@@ -5,6 +5,7 @@
  * POST   /api/scheduled-tasks           — 创建任务
  * GET    /api/scheduled-tasks/runs      — 获取所有任务的最近执行记录
  * GET    /api/scheduled-tasks/:id/runs  — 获取指定任务的执行记录
+ * POST   /api/scheduled-tasks/:id/run   — 立即执行指定任务
  * PUT    /api/scheduled-tasks/:id       — 更新任务
  * DELETE /api/scheduled-tasks/:id       — 删除任务
  */
@@ -62,6 +63,21 @@ export async function handleScheduledTasksApi(
         useWorktree: body.useWorktree as boolean | undefined,
       })
       return Response.json({ task }, { status: 201 })
+    }
+
+    // ── POST /api/scheduled-tasks/:id/run ──────────────────────────────────
+    // Fire-and-forget: start execution in background, return immediately.
+    // The frontend polls GET /:id/runs to track progress.
+    if (method === 'POST' && taskId && subResource === 'run') {
+      const tasks = await cronService.listTasks()
+      const task = tasks.find((t) => t.id === taskId)
+      if (!task) throw ApiError.notFound(`Task ${taskId} not found`)
+      cronScheduler.executeTask(task, { createSession: true }).catch((err) => {
+        console.error(`[ScheduledTasks] Manual run failed for task ${taskId}:`, err)
+      })
+      // Small delay to let appendRun() write the "running" entry to disk
+      await new Promise((r) => setTimeout(r, 200))
+      return Response.json({ ok: true })
     }
 
     // ── PUT /api/scheduled-tasks/:id ──────────────────────────────────────

@@ -12,6 +12,7 @@ type TaskStore = {
   createTask: (input: CreateTaskInput) => Promise<void>
   updateTask: (id: string, updates: Partial<CronTask>) => Promise<void>
   deleteTask: (id: string) => Promise<void>
+  runTask: (taskId: string) => Promise<void>
   fetchRecentRuns: () => Promise<void>
   fetchTaskRuns: (taskId: string) => Promise<TaskRun[]>
 }
@@ -45,6 +46,10 @@ export const useTaskStore = create<TaskStore>((set) => ({
   deleteTask: async (id) => {
     await tasksApi.delete(id)
     set((s) => ({ tasks: s.tasks.filter((t) => t.id !== id) }))
+  },
+
+  runTask: async (taskId) => {
+    await tasksApi.runTask(taskId)
   },
 
   fetchRecentRuns: async () => {

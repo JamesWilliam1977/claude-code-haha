@@ -5,100 +5,146 @@ import { Modal } from '../shared/Modal'
 import { Input } from '../shared/Input'
 import { Button } from '../shared/Button'
 import { PromptEditor } from './PromptEditor'
+import { DayOfWeekPicker } from './DayOfWeekPicker'
 import { useTranslation } from '../../i18n'
+import { describeCron, isValidCron, parseCron, type FrequencyKey } from '../../lib/cronDescribe'
 import type { PermissionMode } from '../../types/settings'
+import type { CronTask } from '../../types/task'
 
 type Props = {
   open: boolean
   onClose: () => void
+  editTask?: CronTask
 }
 
-type FrequencyKey = 'hourly' | 'daily' | 'weekdays' | 'weekly' | 'monthly'
+const MINUTE_INTERVALS = [5, 10, 15, 20, 30]
+const HOUR_INTERVALS = [1, 2, 3, 4, 6, 8, 12]
+const MINUTE_OFFSETS = [0, 15, 30, 45]
 
-function buildCron(freq: FrequencyKey, time: string): string {
+function buildCron(
+  freq: FrequencyKey,
+  time: string,
+  opts: {
+    minuteInterval: number
+    hourInterval: number
+    minuteOffset: number
+    selectedDays: number[]
+    monthDay: number
+    customCron: string
+  },
+): string {
   const [hours, minutes] = time.split(':').map(Number)
   switch (freq) {
-    case 'hourly':   return '0 * * * *'
-    case 'daily':    return `${minutes} ${hours} * * *`
-    case 'weekdays': return `${minutes} ${hours} * * 1-5`
-    case 'weekly':   return `${minutes} ${hours} * * 1`
-    case 'monthly':  return `${minutes} ${hours} 1 * *`
+    case 'everyNMinutes':
+      return `*/${opts.minuteInterval} * * * *`
+    case 'everyNHours':
+      return `${opts.minuteOffset} */${opts.hourInterval} * * *`
+    case 'daily':
+      return `${minutes} ${hours} * * *`
+    case 'weekdays':
+      return `${minutes} ${hours} * * 1-5`
+    case 'specificDays':
+      return `${minutes} ${hours} * * ${[...opts.selectedDays].sort((a, b) => a - b).join(',')}`
+    case 'monthly':
+      return `${minutes} ${hours} ${opts.monthDay} * *`
+    case 'customCron':
+      return opts.customCron.trim()
   }
 }
 
-export function NewTaskModal({ open, onClose }: Props) {
+export function NewTaskModal({ open, onClose, editTask }: Props) {
   const t = useTranslation()
-  const { createTask } = useTaskStore()
+  const { createTask, updateTask } = useTaskStore()
   const sessions = useSessionStore((s) => s.sessions)
   const activeSessionId = useSessionStore((s) => s.activeSessionId)
   const activeSession = sessions.find((s) => s.id === activeSessionId)
   const defaultWorkDir = activeSession?.workDir || ''
 
-  const FREQUENCY_OPTIONS: Array<{ value: FrequencyKey; label: string; showTime: boolean }> = [
-    { value: 'hourly',   label: t('newTask.hourly'),   showTime: false },
-    { value: 'daily',    label: t('newTask.daily'),     showTime: true },
-    { value: 'weekdays', label: t('newTask.weekdays'),  showTime: true },
-    { value: 'weekly',   label: t('newTask.weekly'),    showTime: true },
-    { value: 'monthly',  label: t('newTask.monthly'),   showTime: true },
+  const isEdit = !!editTask
+  const parsed = editTask ? parseCron(editTask.cron) : null
+
+  const FREQUENCY_OPTIONS: Array<{ value: FrequencyKey; label: string }> = [
+    { value: 'everyNMinutes', label: t('newTask.everyNMinutes') },
+    { value: 'everyNHours',   label: t('newTask.everyNHours') },
+    { value: 'daily',         label: t('newTask.daily') },
+    { value: 'weekdays',      label: t('newTask.weekdays') },
+    { value: 'specificDays',  label: t('newTask.specificDays') },
+    { value: 'monthly',       label: t('newTask.monthly') },
+    { value: 'customCron',    label: t('newTask.customCron') },
   ]
 
-  const [name, setName] = useState('')
-  const [description, setDescription] = useState('')
-  const [prompt, setPrompt] = useState('')
-  const [frequency, setFrequency] = useState<FrequencyKey>('daily')
-  const [time, setTime] = useState('09:00')
-  const [model, setModel] = useState('')
-  const [permissionMode, setPermissionMode] = useState<PermissionMode>('default')
-  const [folderPath, setFolderPath] = useState(defaultWorkDir)
-  const [useWorktree, setUseWorktree] = useState(false)
+  const [name, setName] = useState(editTask?.name || '')
+  const [description, setDescription] = useState(editTask?.description || '')
+  const [prompt, setPrompt] = useState(editTask?.prompt || '')
+  const [frequency, setFrequency] = useState<FrequencyKey>(parsed?.frequency || 'daily')
+  const [time, setTime] = useState(parsed?.time || '09:00')
+  const [model, setModel] = useState(editTask?.model || '')
+  const [permissionMode, setPermissionMode] = useState<PermissionMode>((editTask?.permissionMode as PermissionMode) || 'default')
+  const [folderPath, setFolderPath] = useState(editTask?.folderPath || defaultWorkDir)
+  const [useWorktree, setUseWorktree] = useState(editTask?.useWorktree || false)
   const [isSubmitting, setIsSubmitting] = useState(false)
 
-  const canSubmit = name.trim() && description.trim() && prompt.trim()
-  const showTime = FREQUENCY_OPTIONS.find((o) => o.value === frequency)?.showTime ?? false
+  // Enhanced scheduling state
+  const [minuteInterval, setMinuteInterval] = useState(parsed?.minuteInterval || 15)
+  const [hourInterval, setHourInterval] = useState(parsed?.hourInterval || 1)
+  const [minuteOffset, setMinuteOffset] = useState(parsed?.minuteOffset || 0)
+  const [selectedDays, setSelectedDays] = useState<number[]>(parsed?.selectedDays || [1])
+  const [monthDay, setMonthDay] = useState(parsed?.monthDay || 1)
+  const [customCron, setCustomCron] = useState(parsed?.customCron || '0 9 * * *')
+
+  const showTime = ['daily', 'weekdays', 'specificDays', 'monthly'].includes(frequency)
+
+  const cronValue = buildCron(frequency, time, {
+    minuteInterval, hourInterval, minuteOffset, selectedDays, monthDay, customCron,
+  })
+
+  const canSubmit =
+    name.trim() &&
+    description.trim() &&
+    prompt.trim() &&
+    (frequency !== 'customCron' || isValidCron(customCron)) &&
+    (frequency !== 'specificDays' || selectedDays.length > 0)
 
   const handleSubmit = async () => {
     if (!canSubmit) return
     setIsSubmitting(true)
     try {
-      await createTask({
+      const payload = {
         name: name.trim(),
         description: description.trim(),
-        cron: buildCron(frequency, time),
+        cron: cronValue,
         prompt: prompt.trim(),
-        enabled: true,
-        recurring: true,
         model: model || undefined,
         permissionMode: permissionMode !== 'default' ? permissionMode : undefined,
         folderPath: folderPath.trim() || undefined,
         useWorktree: useWorktree || undefined,
-      })
-      // Reset form
-      setName('')
-      setDescription('')
-      setPrompt('')
-      setFrequency('daily')
-      setTime('09:00')
-      setModel('')
-      setPermissionMode('default')
-      setFolderPath('')
-      setUseWorktree(false)
+      }
+      if (isEdit) {
+        await updateTask(editTask!.id, payload)
+      } else {
+        await createTask({ ...payload, enabled: true, recurring: true })
+      }
       onClose()
     } catch (err) {
-      console.error('Failed to create task:', err)
+      console.error(`Failed to ${isEdit ? 'update' : 'create'} task:`, err)
     } finally {
       setIsSubmitting(false)
     }
   }
 
+  const selectClass = 'w-full h-10 px-3 pr-8 rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-surface)] text-sm text-[var(--color-text-primary)] outline-none focus:border-[var(--color-border-focus)] appearance-none cursor-pointer'
+
   return (
     <Modal
       open={open}
       onClose={onClose}
-      title={t('newTask.title')}
+      title={isEdit ? t('tasks.editTitle') : t('newTask.title')}
       footer={
         <>
           <Button variant="secondary" onClick={onClose}>{t('common.cancel')}</Button>
-          <Button onClick={handleSubmit} disabled={!canSubmit} loading={isSubmitting}>{t('newTask.create')}</Button>
+          <Button onClick={handleSubmit} disabled={!canSubmit} loading={isSubmitting}>
+            {isEdit ? t('tasks.saveChanges') : t('newTask.create')}
+          </Button>
         </>
       }
     >
@@ -149,7 +195,7 @@ export function NewTaskModal({ open, onClose }: Props) {
             <select
               value={frequency}
               onChange={(e) => setFrequency(e.target.value as FrequencyKey)}
-              className="w-full h-10 px-3 pr-8 rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-surface)] text-sm text-[var(--color-text-primary)] outline-none focus:border-[var(--color-border-focus)] appearance-none cursor-pointer"
+              className={selectClass}
             >
               {FREQUENCY_OPTIONS.map((opt) => (
                 <option key={opt.value} value={opt.value}>{opt.label}</option>
@@ -161,7 +207,95 @@ export function NewTaskModal({ open, onClose }: Props) {
           </div>
         </div>
 
-        {/* Time picker — shown when frequency supports specific time */}
+        {/* Sub-controls based on frequency */}
+        {frequency === 'everyNMinutes' && (
+          <div className="relative">
+            <select
+              value={minuteInterval}
+              onChange={(e) => setMinuteInterval(Number(e.target.value))}
+              className={selectClass}
+            >
+              {MINUTE_INTERVALS.map((n) => (
+                <option key={n} value={n}>{t('newTask.intervalMinutes', { n })}</option>
+              ))}
+            </select>
+            <span className="material-symbols-outlined text-[18px] text-[var(--color-text-tertiary)] absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none">
+              expand_more
+            </span>
+          </div>
+        )}
+
+        {frequency === 'everyNHours' && (
+          <div className="flex gap-2">
+            <div className="relative flex-1">
+              <select
+                value={hourInterval}
+                onChange={(e) => setHourInterval(Number(e.target.value))}
+                className={selectClass}
+              >
+                {HOUR_INTERVALS.map((n) => (
+                  <option key={n} value={n}>{t('newTask.intervalHours', { n })}</option>
+                ))}
+              </select>
+              <span className="material-symbols-outlined text-[18px] text-[var(--color-text-tertiary)] absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none">
+                expand_more
+              </span>
+            </div>
+            <div className="relative flex-1">
+              <select
+                value={minuteOffset}
+                onChange={(e) => setMinuteOffset(Number(e.target.value))}
+                className={selectClass}
+              >
+                {MINUTE_OFFSETS.map((m) => (
+                  <option key={m} value={m}>{t('newTask.atMinute', { m: m.toString().padStart(2, '0') })}</option>
+                ))}
+              </select>
+              <span className="material-symbols-outlined text-[18px] text-[var(--color-text-tertiary)] absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none">
+                expand_more
+              </span>
+            </div>
+          </div>
+        )}
+
+        {frequency === 'specificDays' && (
+          <DayOfWeekPicker selected={selectedDays} onChange={setSelectedDays} />
+        )}
+
+        {frequency === 'monthly' && (
+          <div className="relative">
+            <select
+              value={monthDay}
+              onChange={(e) => setMonthDay(Number(e.target.value))}
+              className={selectClass}
+            >
+              {Array.from({ length: 28 }, (_, i) => i + 1).map((d) => (
+                <option key={d} value={d}>{t('newTask.onMonthDay', { d })}</option>
+              ))}
+            </select>
+            <span className="material-symbols-outlined text-[18px] text-[var(--color-text-tertiary)] absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none">
+              expand_more
+            </span>
+          </div>
+        )}
+
+        {frequency === 'customCron' && (
+          <div className="flex flex-col gap-1">
+            <input
+              type="text"
+              value={customCron}
+              onChange={(e) => setCustomCron(e.target.value)}
+              placeholder={t('newTask.cronFormatHint')}
+              className="w-full h-10 px-3 rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-surface)] text-sm text-[var(--color-text-primary)] font-[var(--font-mono)] outline-none focus:border-[var(--color-border-focus)]"
+            />
+            <span className="text-xs text-[var(--color-text-tertiary)]">{t('newTask.cronFormatHint')}</span>
+            {customCron.trim() && !isValidCron(customCron) && (
+              <span className="text-xs text-[var(--color-error)]">{t('newTask.invalidCron')}</span>
+            )}
+          </div>
+        )}
+
+        {/* Time picker — shown for daily, weekdays, specificDays, monthly */}
         {showTime && (
           <div className="flex flex-col gap-1">
             <input
@@ -173,6 +307,17 @@ export function NewTaskModal({ open, onClose }: Props) {
             />
           </div>
         )}
+
+        {/* Cron preview */}
+        <div className="flex items-center gap-2 px-3 py-2 rounded-[var(--radius-md)] bg-[var(--color-surface-container)] text-xs text-[var(--color-text-secondary)]">
+          <span className="material-symbols-outlined text-[16px]">schedule</span>
+          <span>
+            {frequency === 'customCron' && customCron.trim() && !isValidCron(customCron)
+              ? t('newTask.invalidCron')
+              : describeCron(cronValue, t)
+            }
+          </span>
+        </div>
 
         <p className="text-xs text-[var(--color-text-tertiary)]">
           {t('newTask.delayNote')}

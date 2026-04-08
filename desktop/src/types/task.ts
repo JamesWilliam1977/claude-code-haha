@@ -45,4 +45,5 @@ export type TaskRun = {
   error?: string
   exitCode?: number
   durationMs?: number
+  sessionId?: string
 }

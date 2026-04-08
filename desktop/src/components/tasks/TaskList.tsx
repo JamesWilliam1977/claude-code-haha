@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import type { CronTask } from '../../types/task'
 import { TaskRow } from './TaskRow'
 import { useTranslation } from '../../i18n'
@@ -9,6 +10,7 @@ type Props = {
 export function TaskList({ tasks }: Props) {
   const t = useTranslation()
   const enabledCount = tasks.filter((task) => task.enabled).length
+  const [expandedLogsId, setExpandedLogsId] = useState<string | null>(null)
 
   return (
     <div>
@@ -19,10 +21,15 @@ export function TaskList({ tasks }: Props) {
         <StatCard label={t('tasks.disabled')} value={String(tasks.length - enabledCount)} />
       </div>
 
-      {/* Task rows */}
+      {/* Task rows — accordion: only one logs panel open at a time */}
       <div className="flex flex-col">
         {tasks.map((task) => (
-          <TaskRow key={task.id} task={task} />
+          <TaskRow
+            key={task.id}
+            task={task}
+            showLogs={expandedLogsId === task.id}
+            onToggleLogs={() => setExpandedLogsId(expandedLogsId === task.id ? null : task.id)}
+          />
         ))}
       </div>
     </div>

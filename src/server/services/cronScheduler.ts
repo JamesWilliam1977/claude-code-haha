@@ -12,6 +12,7 @@ import * as path from 'path'
 import * as os from 'os'
 import * as crypto from 'crypto'
 import { CronService, type CronTask } from './cronService.js'
+import { SessionService } from './sessionService.js'
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 
@@ -27,6 +28,59 @@ export type TaskRun = {
   error?: string
   exitCode?: number
   durationMs?: number
+  sessionId?: string // links to a session for rich output rendering
+}
+
+// ─── Output extraction ────────────────────────────────────────────────────────
+
+/**
+ * Extract meaningful assistant text from raw CLI stream-json (NDJSON) output.
+ *
+ * The raw stdout contains system/init messages, tool_use blocks, tool_result
+ * echoes, and thinking blocks — all of which are noise to the end user. The
+ * actual AI answer (assistant text blocks + final result) is what matters.
+ *
+ * By extracting server-side we avoid the 10K naive truncation problem where
+ * the useful content sits well past the first 10K characters.
+ */
+function extractAssistantText(raw: string): string {
+  if (!raw) return ''
+  const lines = raw.split('\n')
+  const parts: string[] = []
+
+  for (const line of lines) {
+    if (!line.trim()) continue
+    let parsed: any
+    try {
+      parsed = JSON.parse(line)
+    } catch {
+      continue // skip non-JSON lines and truncated lines
+    }
+
+    const type = parsed?.type
+
+    if (type === 'assistant') {
+      const content = parsed?.message?.content
+      if (!Array.isArray(content)) continue
+      for (const block of content) {
+        if (block.type === 'text' && block.text?.trim()) {
+          parts.push(block.text.trim())
+        }
+        // Skip tool_use, thinking blocks
+      }
+    }
+
+    if (type === 'result') {
+      const result = parsed?.result
+      if (typeof result === 'string' && result.trim()) {
+        parts.push(result.trim())
+      } else if (result?.message?.trim()) {
+        parts.push(result.message.trim())
+      }
+    }
+  }
+
+  return parts.join('\n\n')
 }
 
 // ─── Cron expression matching ──────────────────────────────────────────────────
@@ -193,9 +247,11 @@ export class CronScheduler {
     { proc: ReturnType<typeof Bun.spawn>; startedAt: number; runId: string }
   >()
   private cronService: CronService
+  private sessionService: SessionService
 
   constructor(cronService?: CronService) {
     this.cronService = cronService || new CronService()
+    this.sessionService = new SessionService()
   }
 
   /** Start the scheduler (called on server boot). */
@@ -252,10 +308,30 @@ export class CronScheduler {
     }
   }
 
-  /** Execute a single task by spawning a CLI subprocess. */
-  async executeTask(task: CronTask): Promise<TaskRun> {
+  /**
+   * Execute a single task by spawning a CLI subprocess.
+   * @param task The task to execute
+   * @param options.createSession When true, creates a Session for rich output viewing (used for manual "Run Now")
+   */
+  async executeTask(task: CronTask, options?: { createSession?: boolean }): Promise<TaskRun> {
     const runId = crypto.randomBytes(6).toString('hex')
     const startedAt = new Date().toISOString()
+    const workDir = task.folderPath || os.homedir()
+
+    // Only create a session when explicitly requested (manual "Run Now"),
+    // not for automatic cron runs — avoids flooding the sidebar.
+    let sessionId: string | undefined
+    if (options?.createSession) {
+      try {
+        const result = await this.sessionService.createSession(workDir)
+        sessionId = result.sessionId
+        // Delete the placeholder JSONL file so the CLI can create it fresh
+        // with actual content. Same pattern as conversationService.ts.
+        await this.sessionService.deleteSessionFile(sessionId)
+      } catch {
+        // Fall back to no session if creation fails
+      }
+    }
 
     const run: TaskRun = {
       id: runId,
@@ -264,13 +340,16 @@ export class CronScheduler {
       startedAt,
       status: 'running',
       prompt: task.prompt,
+      sessionId,
     }
 
     // Persist the "running" state
     await appendRun(run)
 
-    // Resolve CLI entry point relative to this file
-    const cliPath = path.resolve(import.meta.dir, '../../entrypoints/cli.tsx')
+    // Resolve paths relative to project root
+    const projectRoot = path.resolve(import.meta.dir, '../../..')
+    const cliPath = path.join(projectRoot, 'src/entrypoints/cli.tsx')
+    const preloadPath = path.join(projectRoot, 'preload.ts')
 
     const inputPayload = JSON.stringify({
       type: 'user',
@@ -279,12 +358,14 @@ export class CronScheduler {
         content: [{ type: 'text', text: task.prompt }],
       },
       parent_tool_use_id: null,
-      session_id: '',
+      session_id: sessionId || '',
     }) + '\n'
 
     const proc = Bun.spawn(
       [
         'bun',
+        '--preload',
+        preloadPath,
         cliPath,
         '--print',
         '--verbose',
@@ -292,12 +373,13 @@ export class CronScheduler {
         'stream-json',
         '--output-format',
         'stream-json',
+        ...(sessionId ? ['--session-id', sessionId] : []),
       ],
       {
         stdin: 'pipe',
         stdout: 'pipe',
         stderr: 'pipe',
-        cwd: task.folderPath || os.homedir(),
+        cwd: workDir,
       },
     )
 
@@ -346,18 +428,24 @@ export class CronScheduler {
       this.runningTasks.delete(task.id)
 
       const completedAt = new Date().toISOString()
-      const output = stdoutChunks.join('')
+      const rawOutput = stdoutChunks.join('')
       const durationMs =
         new Date(completedAt).getTime() - new Date(startedAt).getTime()
 
       // Determine if this was a timeout
       const wasTimeout = durationMs >= TASK_TIMEOUT_MS
 
+      // Extract only meaningful AI text responses from raw NDJSON output.
+      // The raw stream contains system/init messages, tool_use blocks, and
+      // tool_result echoes that consume thousands of chars before any actual
+      // AI answer appears. A naive .slice(0, 10_000) would lose the answer.
+      const output = extractAssistantText(rawOutput)
+
       const completedRun: TaskRun = {
         ...run,
         completedAt,
         status: wasTimeout ? 'timeout' : exitCode === 0 ? 'completed' : 'failed',
-        output: output.slice(0, 10_000), // cap stored output
+        output: output.slice(0, 50_000), // cap after extraction
         exitCode,
         durationMs,
       }

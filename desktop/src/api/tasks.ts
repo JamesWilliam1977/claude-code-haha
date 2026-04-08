@@ -22,6 +22,10 @@ export const tasksApi = {
     return api.delete<{ ok: true }>(`/api/scheduled-tasks/${id}`)
   },
 
+  runTask(id: string) {
+    return api.post<{ ok: true }>(`/api/scheduled-tasks/${id}/run`, {})
+  },
+
   getRecentRuns(limit = 50) {
     return api.get<RunsResponse>(`/api/scheduled-tasks/runs?limit=${limit}`)
   },
