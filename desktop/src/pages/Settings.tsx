@@ -769,14 +769,14 @@ function SkillSettings() {
 
   if (selectedSkill) {
     return (
-      <div className="max-w-3xl">
+      <div className="w-full min-w-0 max-w-[1400px]">
         <SkillDetail />
       </div>
     )
   }
 
   return (
-    <div className="max-w-2xl">
+    <div className="w-full min-w-0 max-w-[1280px]">
       <h2 className="text-base font-semibold text-[var(--color-text-primary)] mb-1">
         {t('settings.skills.title')}
       </h2>

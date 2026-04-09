@@ -4,6 +4,8 @@ import { CodeViewer } from '../chat/CodeViewer'
 
 type Props = {
   content: string
+  variant?: 'default' | 'document'
+  className?: string
 }
 
 type CodeBlock = {
@@ -36,8 +38,50 @@ function parseMarkdown(content: string): { html: string; codeBlocks: CodeBlock[]
   return { html, codeBlocks }
 }
 
-export function MarkdownRenderer({ content }: Props) {
+const BASE_PROSE_CLASSES = `prose prose-sm max-w-none text-[var(--color-text-primary)]
+  prose-headings:text-[var(--color-text-primary)] prose-headings:font-semibold
+  prose-p:my-2 prose-p:leading-relaxed
+  prose-p:break-words
+  prose-code:text-[13px] prose-code:font-[var(--font-mono)] prose-code:bg-[var(--color-surface-info)] prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded
+  prose-pre:!bg-transparent prose-pre:!p-0 prose-pre:!shadow-none
+  prose-a:text-[var(--color-text-accent)] prose-a:no-underline hover:prose-a:underline
+  prose-strong:text-[var(--color-text-primary)]
+  prose-ul:my-2 prose-ol:my-2
+  prose-li:my-0.5
+  prose-table:w-full prose-table:table-auto prose-table:text-sm
+  prose-th:bg-[var(--color-surface-info)] prose-th:px-3 prose-th:py-2 prose-th:whitespace-normal prose-th:break-words prose-th:align-top
+  prose-td:px-3 prose-td:py-2 prose-td:border-[var(--color-border)] prose-td:whitespace-normal prose-td:break-words prose-td:align-top`
+
+const DOCUMENT_PROSE_CLASSES = `
+  prose-p:text-[15px] prose-p:leading-7
+  prose-headings:scroll-mt-6 prose-headings:tracking-[-0.01em]
+  prose-h1:mb-4 prose-h1:text-2xl prose-h1:font-semibold prose-h1:leading-tight
+  prose-h2:mt-8 prose-h2:mb-3 prose-h2:border-b prose-h2:border-[var(--color-border)] prose-h2:pb-2 prose-h2:text-xl prose-h2:font-semibold
+  prose-h3:mt-6 prose-h3:mb-2 prose-h3:text-base prose-h3:font-semibold
+  prose-h4:mt-5 prose-h4:mb-2 prose-h4:text-sm prose-h4:font-semibold
+  prose-blockquote:my-4 prose-blockquote:rounded-r-lg prose-blockquote:border-l-4 prose-blockquote:border-[var(--color-outline-variant)] prose-blockquote:bg-[var(--color-surface-container-low)] prose-blockquote:px-4 prose-blockquote:py-2 prose-blockquote:italic
+  prose-hr:my-6 prose-hr:border-[var(--color-border)]
+  prose-img:rounded-lg prose-img:border prose-img:border-[var(--color-border)]
+  prose-kbd:rounded prose-kbd:border prose-kbd:border-[var(--color-border)] prose-kbd:bg-[var(--color-surface-container-lowest)] prose-kbd:px-1.5 prose-kbd:py-0.5 prose-kbd:font-[var(--font-mono)] prose-kbd:text-[12px] prose-kbd:font-normal prose-kbd:text-[var(--color-text-secondary)] prose-kbd:shadow-none
+  prose-ul:pl-5 prose-ul:[&>li]:marker:text-[var(--color-text-tertiary)]
+  prose-ol:pl-5 prose-ol:[&>li]:marker:text-[var(--color-text-tertiary)]
+  prose-li:my-1.5
+  prose-table:my-5
+  prose-th:text-left
+  prose-td:bg-[var(--color-surface)]`
+
+function getProseClasses(variant: 'default' | 'document', className?: string) {
+  return [BASE_PROSE_CLASSES, variant === 'document' ? DOCUMENT_PROSE_CLASSES : '', className ?? '']
+    .filter(Boolean)
+    .join(' ')
+}
+
+export function MarkdownRenderer({ content, variant = 'default', className }: Props) {
   const { html, codeBlocks } = useMemo(() => parseMarkdown(content), [content])
+  const proseClasses = useMemo(
+    () => getProseClasses(variant, className),
+    [variant, className],
+  )
 
   const parts = useMemo(() => {
     if (codeBlocks.length === 0) {
@@ -86,20 +130,6 @@ export function MarkdownRenderer({ content }: Props) {
       // Ignore clipboard errors
     }
   }, [])
-
-  const proseClasses = `prose prose-sm max-w-none text-[var(--color-text-primary)]
-    prose-headings:text-[var(--color-text-primary)] prose-headings:font-semibold
-    prose-p:my-2 prose-p:leading-relaxed
-    prose-p:break-words
-    prose-code:text-[13px] prose-code:font-[var(--font-mono)] prose-code:bg-[var(--color-surface-info)] prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded
-    prose-pre:!bg-transparent prose-pre:!p-0 prose-pre:!shadow-none
-    prose-a:text-[var(--color-text-accent)] prose-a:no-underline hover:prose-a:underline
-    prose-strong:text-[var(--color-text-primary)]
-    prose-ul:my-2 prose-ol:my-2
-    prose-li:my-0.5
-    prose-table:w-full prose-table:table-auto prose-table:text-sm
-    prose-th:bg-[var(--color-surface-info)] prose-th:px-3 prose-th:py-2 prose-th:whitespace-normal prose-th:break-words prose-th:align-top
-    prose-td:px-3 prose-td:py-2 prose-td:border-[var(--color-border)] prose-td:whitespace-normal prose-td:break-words prose-td:align-top`
 
   if (codeBlocks.length === 0) {
     return (

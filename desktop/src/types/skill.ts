@@ -19,10 +19,15 @@ export type FileTreeNode = {
   children?: FileTreeNode[]
 }
 
+export type SkillFrontmatter = Record<string, unknown>
+
 export type SkillFile = {
   path: string
   content: string
   language: string
+  frontmatter?: SkillFrontmatter
+  body?: string
+  isEntry?: boolean
 }
 
 export type SkillDetail = {

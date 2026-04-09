@@ -9,7 +9,7 @@
 import * as os from 'os'
 import * as path from 'path'
 import * as fs from 'fs/promises'
-import { parse as parseYaml } from 'yaml'
+import { parseFrontmatter } from '../../utils/frontmatterParser.js'
 import { ApiError, errorResponse } from '../middleware/errorHandler.js'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -36,6 +36,9 @@ type SkillFile = {
   path: string
   content: string
   language: string
+  frontmatter?: Record<string, unknown>
+  body?: string
+  isEntry?: boolean
 }
 
 // ─── Constants ───────────────────────────────────────────────────────────────
@@ -59,17 +62,14 @@ function detectLanguage(filename: string): string {
   return LANG_MAP[ext] || 'text'
 }
 
-function parseFrontmatter(content: string): {
+function normalizeFrontmatter(content: string, sourcePath?: string): {
   frontmatter: Record<string, unknown>
   body: string
 } {
-  const match = content.match(/^---\s*\n([\s\S]*?)\n---\s*\n?/)
-  if (!match) return { frontmatter: {}, body: content }
-  try {
-    const frontmatter = (parseYaml(match[1]) as Record<string, unknown>) || {}
-    return { frontmatter, body: content.slice(match[0].length) }
-  } catch {
-    return { frontmatter: {}, body: content }
+  const parsed = parseFrontmatter(content, sourcePath)
+  return {
+    frontmatter: parsed.frontmatter as Record<string, unknown>,
+    body: parsed.content,
   }
 }
 
@@ -85,7 +85,7 @@ async function loadSkillMeta(
   const skillFile = path.join(skillDir, 'SKILL.md')
   try {
     const raw = await fs.readFile(skillFile, 'utf-8')
-    const { frontmatter, body } = parseFrontmatter(raw)
+    const { frontmatter, body } = normalizeFrontmatter(raw, skillFile)
 
     const description =
       (frontmatter.description as string) ||
@@ -157,11 +157,27 @@ async function buildFileTree(
           const stat = await fs.stat(fullPath)
           if (stat.size <= MAX_FILE_SIZE) {
             const content = await fs.readFile(fullPath, 'utf-8')
-            files.push({
-              path: relPath,
-              content,
-              language: detectLanguage(entry.name),
-            })
+            const language = detectLanguage(entry.name)
+            const isEntry = relPath === 'SKILL.md'
+
+            if (isEntry && language === 'markdown') {
+              const { frontmatter, body } = normalizeFrontmatter(content, fullPath)
+              files.push({
+                path: relPath,
+                content: body,
+                body,
+                frontmatter,
+                language,
+                isEntry: true,
+              })
+            } else {
+              files.push({
+                path: relPath,
+                content,
+                language,
+                isEntry: false,
+              })
+            }
             fileCount++
           }
         } catch {

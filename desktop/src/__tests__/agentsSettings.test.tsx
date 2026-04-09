@@ -4,6 +4,8 @@ import '@testing-library/jest-dom'
 
 import { Settings } from '../pages/Settings'
 import { useAgentStore } from '../stores/agentStore'
+import { useSkillStore } from '../stores/skillStore'
+import { useSettingsStore } from '../stores/settingsStore'
 
 // Mock the API module so no real HTTP calls are made
 vi.mock('../api/agents', () => ({
@@ -12,17 +14,8 @@ vi.mock('../api/agents', () => ({
   },
 }))
 
-/** Override fetchAgents to a no-op so useEffect doesn't clobber manually set state */
 const noopFetch = vi.fn()
 
-// Mock MarkdownRenderer to avoid pulling in `marked` and CodeViewer deps
-vi.mock('../components/markdown/MarkdownRenderer', () => ({
-  MarkdownRenderer: ({ content }: { content: string }) => (
-    <div data-testid="markdown-renderer">{content}</div>
-  ),
-}))
-
-// Mock the provider store so ProviderSettings doesn't crash
 vi.mock('../stores/providerStore', () => ({
   useProviderStore: () => ({
     providers: [],
@@ -39,9 +32,12 @@ vi.mock('../stores/providerStore', () => ({
   }),
 }))
 
-// Mock the adapter settings to avoid its side effects
 vi.mock('../pages/AdapterSettings', () => ({
   AdapterSettings: () => <div>Adapter Settings Mock</div>,
+}))
+
+vi.mock('../components/chat/CodeViewer', () => ({
+  CodeViewer: ({ code }: { code: string }) => <pre data-testid="code-viewer">{code}</pre>,
 }))
 
 const MOCK_AGENTS = [
@@ -69,20 +65,69 @@ const MOCK_AGENTS = [
   },
 ]
 
+const MOCK_SKILL_DETAIL = {
+  meta: {
+    name: 'skill-docs',
+    displayName: 'Skill Docs',
+    description: 'A rich skill readme',
+    source: 'user' as const,
+    userInvocable: true,
+    contentLength: 200,
+    hasDirectory: true,
+  },
+  tree: [
+    { name: 'SKILL.md', path: 'SKILL.md', type: 'file' as const },
+    { name: 'helper.ts', path: 'helper.ts', type: 'file' as const },
+  ],
+  files: [
+    {
+      path: 'SKILL.md',
+      language: 'markdown',
+      content: '# Heading\n\nParagraph with `inline code`.\n\n## Section\n\n- First item\n- Second item\n\n> Helpful quote',
+      body: '# Heading\n\nParagraph with `inline code`.\n\n## Section\n\n- First item\n- Second item\n\n> Helpful quote',
+      isEntry: true,
+      frontmatter: {
+        description: 'A rich skill readme',
+        model: 'sonnet',
+      },
+    },
+    {
+      path: 'helper.ts',
+      language: 'typescript',
+      content: 'export const helper = true',
+      isEntry: false,
+    },
+  ],
+  skillRoot: '/tmp/skill-docs',
+}
+
 function switchToAgentsTab() {
-  // The Agents tab button has text "Agents"
-  const agentsTab = screen.getByText('Agents')
-  fireEvent.click(agentsTab)
+  fireEvent.click(screen.getByText('Agents'))
+}
+
+function switchToSkillsTab() {
+  fireEvent.click(screen.getByText('Skills'))
 }
 
 describe('Settings > Agents tab', () => {
   beforeEach(() => {
-    // Reset store to default state before each test
+    useSettingsStore.setState({ locale: 'en' })
     useAgentStore.setState({
       agents: [],
       isLoading: false,
       error: null,
       selectedAgent: null,
+      fetchAgents: noopFetch,
+    })
+    useSkillStore.setState({
+      skills: [],
+      selectedSkill: null,
+      isLoading: false,
+      isDetailLoading: false,
+      error: null,
+      fetchSkills: noopFetch,
+      fetchSkillDetail: noopFetch,
+      clearSelection: () => useSkillStore.setState({ selectedSkill: null }),
     })
   })
 
@@ -128,7 +173,6 @@ describe('Settings > Agents tab', () => {
     expect(screen.getByText('Reviews code for quality and security')).toBeInTheDocument()
     expect(screen.getByText('doc-writer')).toBeInTheDocument()
     expect(screen.getByText('Writes technical documentation')).toBeInTheDocument()
-    // Agent count badge
     expect(screen.getByText('3 agents')).toBeInTheDocument()
   })
 
@@ -156,12 +200,9 @@ describe('Settings > Agents tab', () => {
 
     fireEvent.click(screen.getByText('code-reviewer'))
 
-    // Detail view should show
     expect(screen.getByText('Back to list')).toBeInTheDocument()
     expect(screen.getByText('Reviews code for quality and security')).toBeInTheDocument()
-    // Model meta
     expect(screen.getByText(/claude-sonnet-4-6/)).toBeInTheDocument()
-    // Tools meta
     expect(screen.getByText(/Read, Grep, Glob/)).toBeInTheDocument()
   })
 
@@ -172,9 +213,8 @@ describe('Settings > Agents tab', () => {
 
     fireEvent.click(screen.getByText('code-reviewer'))
 
-    const mdRenderer = screen.getByTestId('markdown-renderer')
-    expect(mdRenderer).toBeInTheDocument()
-    expect(mdRenderer.textContent).toContain('Code Reviewer')
+    expect(screen.getByRole('heading', { name: 'Code Reviewer' })).toBeInTheDocument()
+    expect(screen.getByText('You are an expert code reviewer.')).toBeInTheDocument()
   })
 
   it('shows "no system prompt" message when agent has no prompt', () => {
@@ -192,16 +232,63 @@ describe('Settings > Agents tab', () => {
     render(<Settings />)
     switchToAgentsTab()
 
-    // Go to detail
     fireEvent.click(screen.getByText('code-reviewer'))
     expect(screen.getByText('Back to list')).toBeInTheDocument()
 
-    // Go back
     fireEvent.click(screen.getByText('Back to list'))
 
-    // Should see the list again
     expect(screen.getByText('code-reviewer')).toBeInTheDocument()
     expect(screen.getByText('doc-writer')).toBeInTheDocument()
     expect(screen.getByText('plain-agent')).toBeInTheDocument()
+  })
+})
+
+describe('Settings > Skills tab', () => {
+  beforeEach(() => {
+    useSettingsStore.setState({ locale: 'en' })
+    useSkillStore.setState({
+      skills: [],
+      selectedSkill: null,
+      isLoading: false,
+      isDetailLoading: false,
+      error: null,
+      fetchSkills: noopFetch,
+      fetchSkillDetail: noopFetch,
+      clearSelection: () => useSkillStore.setState({ selectedSkill: null }),
+    })
+  })
+
+  it('renders markdown skills with document styling in detail view', () => {
+    useSkillStore.setState({
+      selectedSkill: MOCK_SKILL_DETAIL,
+      clearSelection: () => useSkillStore.setState({ selectedSkill: null }),
+    })
+
+    render(<Settings />)
+    switchToSkillsTab()
+
+    expect(screen.getByText('Skill metadata')).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Heading' })).toBeInTheDocument()
+
+    const rendererRoot = screen.getByRole('heading', { name: 'Heading' }).closest('div[class*="prose"]')
+    expect(rendererRoot?.className).toContain('max-w-[72ch]')
+    expect(rendererRoot?.className).toContain('prose-h2:border-b')
+    expect(rendererRoot?.className).toContain('prose-p:text-[15px]')
+    expect(screen.getByText('Helpful quote')).toBeInTheDocument()
+  })
+
+  it('keeps code files rendered in CodeViewer instead of markdown prose', () => {
+    useSkillStore.setState({
+      selectedSkill: MOCK_SKILL_DETAIL,
+      clearSelection: () => useSkillStore.setState({ selectedSkill: null }),
+    })
+
+    render(<Settings />)
+    switchToSkillsTab()
+
+    fireEvent.click(screen.getAllByText('helper.ts')[0]!)
+
+    expect(screen.getByTestId('code-viewer')).toHaveTextContent('export const helper = true')
+    expect(screen.queryByRole('heading', { name: 'Heading' })).not.toBeInTheDocument()
   })
 })
