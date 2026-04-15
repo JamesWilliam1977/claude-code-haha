@@ -9,6 +9,7 @@ import * as fs from 'node:fs/promises'
 import * as path from 'node:path'
 import * as os from 'node:os'
 import { ApiError } from '../middleware/errorHandler.js'
+import { sanitizePath as sanitizePortablePath } from '../../utils/sessionStoragePortable.js'
 
 // ============================================================================
 // Types
@@ -88,11 +89,11 @@ export class SessionService {
   }
 
   /**
-   * Sanitize a path the same way the CLI does: replace path separators with '-'.
-   * For example, `/Users/nanmi/workspace` becomes `-Users-nanmi-workspace`.
+   * Sanitize a path the same way the shared session storage does.
+   * This must remain Windows-safe, so reserved characters such as ':' are normalized too.
    */
   private sanitizePath(dirPath: string): string {
-    return dirPath.replace(/\//g, '-').replace(/\\/g, '-')
+    return sanitizePortablePath(dirPath)
   }
 
   // --------------------------------------------------------------------------

@@ -7,6 +7,7 @@ import * as fs from 'node:fs/promises'
 import * as path from 'node:path'
 import * as os from 'node:os'
 import { SessionService } from '../services/sessionService.js'
+import { sanitizePath } from '../../utils/sessionStoragePortable.js'
 
 // ============================================================================
 // Test helpers
@@ -375,7 +376,7 @@ describe('SessionService', () => {
     )
 
     // Verify the file was created
-    const sanitized = workDir.replace(/\//g, '-')
+    const sanitized = sanitizePath(workDir)
     const filePath = path.join(tmpDir, 'projects', sanitized, `${sessionId}.jsonl`)
     const stat = await fs.stat(filePath)
     expect(stat.isFile()).toBe(true)
@@ -386,8 +387,30 @@ describe('SessionService', () => {
     expect(entry.type).toBe('file-history-snapshot')
   })
 
-  it('should throw when workDir is missing', async () => {
-    expect(service.createSession('')).rejects.toThrow('workDir is required')
+  it('should create a Windows-safe project directory name', async () => {
+    if (process.platform !== 'win32') return
+
+    const workDir = process.cwd()
+    const { sessionId } = await service.createSession(workDir)
+    const sanitized = sanitizePath(workDir)
+    const projectDir = path.join(tmpDir, 'projects', sanitized)
+
+    expect(sanitized.includes(':')).toBe(false)
+    const stat = await fs.stat(path.join(projectDir, `${sessionId}.jsonl`))
+    expect(stat.isFile()).toBe(true)
+  })
+
+  it('should default to the user home directory when workDir is missing', async () => {
+    const { sessionId } = await service.createSession('')
+    const filePath = path.join(
+      tmpDir,
+      'projects',
+      sanitizePath(os.homedir()),
+      `${sessionId}.jsonl`,
+    )
+
+    const stat = await fs.stat(filePath)
+    expect(stat.isFile()).toBe(true)
   })
 
   it('should throw when workDir does not exist', async () => {
@@ -585,13 +608,18 @@ describe('Sessions API', () => {
     )
   })
 
-  it('POST /api/sessions should reject missing workDir', async () => {
+  it('POST /api/sessions should create a session when workDir is omitted', async () => {
     const res = await fetch(`${baseUrl}/api/sessions`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({}),
     })
-    expect(res.status).toBe(400)
+    expect(res.status).toBe(201)
+
+    const body = (await res.json()) as { sessionId: string }
+    expect(body.sessionId).toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
+    )
   })
 
   it('GET /api/sessions/:id should return session detail', async () => {

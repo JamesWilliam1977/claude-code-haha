@@ -6,10 +6,11 @@ use std::{
     time::{Duration, Instant},
 };
 
-use tauri::{
-    menu::{MenuBuilder, MenuItemBuilder, SubmenuBuilder},
-    AppHandle, Emitter, Manager, RunEvent, State,
-};
+#[cfg(target_os = "macos")]
+use tauri::menu::{MenuBuilder, MenuItemBuilder, SubmenuBuilder};
+#[cfg(target_os = "macos")]
+use tauri::Emitter;
+use tauri::{AppHandle, Manager, RunEvent, State};
 use tauri_plugin_shell::{
     process::{CommandChild, CommandEvent},
     ShellExt,
@@ -294,7 +295,7 @@ fn stop_adapters_sidecar(app: &AppHandle) {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    let app = tauri::Builder::default()
+    let builder = tauri::Builder::default()
         .manage(ServerState::default())
         .manage(AdapterState::default())
         .plugin(tauri_plugin_shell::init())
@@ -304,7 +305,11 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             get_server_url,
             restart_adapters_sidecar
-        ])
+        ]);
+
+    // macOS: native menu bar (traffic-light overlay style)
+    #[cfg(target_os = "macos")]
+    let builder = builder
         .menu(|app| {
             let about_item = MenuItemBuilder::with_id("nav_about", "关于 Claude Code Haha")
                 .build(app)?;
@@ -361,7 +366,9 @@ pub fn run() {
                 let _ = app.emit("native-menu-navigate", "settings");
             }
             _ => {}
-        })
+        });
+
+    let app = builder
         .setup(|app| {
             let state = app.state::<ServerState>();
             let mut guard = state
@@ -388,6 +395,11 @@ pub fn run() {
             spawn_and_track_adapters_sidecar(&app.handle());
 
             let _window = app.get_webview_window("main").unwrap();
+
+            // Windows: hide native decorations — frontend renders custom titlebar
+            #[cfg(target_os = "windows")]
+            let _ = _window.set_decorations(false);
+
             Ok(())
         })
         .build(tauri::generate_context!())

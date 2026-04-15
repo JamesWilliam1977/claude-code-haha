@@ -49,9 +49,26 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
 
   createSession: async (workDir?: string) => {
     const { sessionId: id } = await sessionsApi.create(workDir || undefined)
-    // Refresh session list
-    await get().fetchSessions()
-    set({ activeSessionId: id })
+    const now = new Date().toISOString()
+    const optimisticSession: SessionListItem = {
+      id,
+      title: 'New Session',
+      createdAt: now,
+      modifiedAt: now,
+      messageCount: 0,
+      projectPath: '',
+      workDir: workDir ?? null,
+      workDirExists: true,
+    }
+
+    set((state) => ({
+      sessions: state.sessions.some((session) => session.id === id)
+        ? state.sessions
+        : [optimisticSession, ...state.sessions],
+      activeSessionId: id,
+    }))
+
+    void get().fetchSessions()
     return id
   },
 

@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback, useMemo, useRef } from 'react'
 import { useSessionStore } from '../../stores/sessionStore'
+import { useUIStore } from '../../stores/uiStore'
 import { useTranslation } from '../../i18n'
 import { ProjectFilter } from './ProjectFilter'
 import type { SessionListItem } from '../../types/session'
@@ -7,6 +8,7 @@ import { useTabStore, SETTINGS_TAB_ID, SCHEDULED_TAB_ID } from '../../stores/tab
 import { useChatStore } from '../../stores/chatStore'
 
 const isTauri = typeof window !== 'undefined' && ('__TAURI_INTERNALS__' in window || '__TAURI__' in window)
+const isWindows = typeof navigator !== 'undefined' && /Win/.test(navigator.platform)
 
 type TimeGroup = 'today' | 'yesterday' | 'last7days' | 'last30days' | 'older'
 
@@ -19,6 +21,7 @@ export function Sidebar() {
   const fetchSessions = useSessionStore((s) => s.fetchSessions)
   const deleteSession = useSessionStore((s) => s.deleteSession)
   const renameSession = useSessionStore((s) => s.renameSession)
+  const addToast = useUIStore((s) => s.addToast)
   const activeTabId = useTabStore((s) => s.activeTabId)
   const [searchQuery, setSearchQuery] = useState('')
   const [contextMenu, setContextMenu] = useState<{ id: string; x: number; y: number } | null>(null)
@@ -105,9 +108,9 @@ export function Sidebar() {
   }
 
   return (
-    <aside data-tauri-drag-region onMouseDown={handleSidebarDrag} className="w-[var(--sidebar-width)] h-full flex flex-col bg-[var(--color-surface-sidebar)] border-r border-[var(--color-border)] select-none">
-      {/* Brand logo — extra top padding in desktop to clear macOS traffic lights */}
-      <div className={`px-3 pb-1.5 flex items-center justify-between ${isTauri ? 'pt-[44px]' : 'pt-3'}`}>
+    <aside onMouseDown={handleSidebarDrag} className="w-[var(--sidebar-width)] h-full flex flex-col bg-[var(--color-surface-sidebar)] border-r border-[var(--color-border)] select-none">
+      {/* Brand logo — extra top padding in desktop to clear macOS traffic lights (not needed on Windows) */}
+      <div className={`px-3 pb-1.5 flex items-center justify-between ${isTauri && !isWindows ? 'pt-[44px]' : 'pt-3'}`}>
         <div className="flex items-center gap-2.5">
           <img src="/app-icon.jpg" alt="" className="h-8 w-8 rounded-lg flex-shrink-0" />
           <span className="text-[13px] font-semibold tracking-tight text-[var(--color-text-primary)]" style={{ fontFamily: "'Manrope', sans-serif" }}>
@@ -139,8 +142,12 @@ export function Sidebar() {
               const sessionId = await useSessionStore.getState().createSession(workDir)
               useTabStore.getState().openTab(sessionId, t('sidebar.newSession'))
               useChatStore.getState().connectToSession(sessionId)
-            } catch {
-              // Session creation failed — no tab opened
+            } catch (error) {
+              addToast({
+                type: 'error',
+                message:
+                  error instanceof Error ? error.message : t('sidebar.sessionListFailed'),
+              })
             }
           }}
           icon={<PlusIcon />}

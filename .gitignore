@@ -39,6 +39,9 @@ desktop/brand-assets/
 # Superpowers plans & specs (local only)
 docs/superpowers/
 
+# Temp server/web logs
+.tmp-*.log
+
 # Debug / temp screenshots (root dir only)
 /*.png
 bug_attachments/

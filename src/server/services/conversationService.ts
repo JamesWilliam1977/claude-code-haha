@@ -118,34 +118,7 @@ export class ConversationService {
     // 工作目录就变成 `/`。把 CALLER_DIR / PWD 显式覆盖成 workDir，preload.ts
     // chdir 后落到正确目录。
     //
-    // Provider isolation: strip provider-managed env vars from the inherited
-    // process.env so the CLI subprocess reads them fresh from config files
-    // (cc-haha/settings.json or ~/.claude/settings.json). Without this,
-    // switching to "Claude 官方" in the desktop UI would still send requests
-    // to the previous provider because stale env vars linger in the sidecar's
-    // process.env after activateOfficial() only clears the config file.
-    const PROVIDER_ENV_KEYS = [
-      'ANTHROPIC_API_KEY',
-      'ANTHROPIC_BASE_URL',
-      'ANTHROPIC_AUTH_TOKEN',
-      'ANTHROPIC_MODEL',
-      'ANTHROPIC_DEFAULT_HAIKU_MODEL',
-      'ANTHROPIC_DEFAULT_SONNET_MODEL',
-      'ANTHROPIC_DEFAULT_OPUS_MODEL',
-    ]
-    const cleanEnv = { ...process.env }
-    for (const key of PROVIDER_ENV_KEYS) {
-      delete cleanEnv[key]
-    }
-    const childEnv = {
-      ...cleanEnv,
-      CLAUDE_CODE_ENABLE_TASKS: '1',
-      CALLER_DIR: workDir,
-      PWD: workDir,
-      // Tell bin/claude-haha to skip .env loading — provider env is managed
-      // by cc-haha/settings.json, not the project's .env file.
-      CC_HAHA_SKIP_DOTENV: '1',
-    }
+    const childEnv = this.buildChildEnv(workDir)
 
     let proc: ReturnType<typeof Bun.spawn>
     try {
@@ -486,6 +459,72 @@ export class ConversationService {
     return args
   }
 
+  private buildChildEnv(workDir: string): Record<string, string> {
+    // Provider isolation: when Desktop has its own provider config/index,
+    // strip inherited provider env vars so the child CLI reads fresh values
+    // from ~/.claude/cc-haha/settings.json instead of stale process.env.
+    //
+    // If the user never configured a Desktop provider and only launched the
+    // app/server with ANTHROPIC_* env vars, keep those env vars so Windows
+    // dev-mode and env-only setups can still authenticate successfully.
+    const PROVIDER_ENV_KEYS = [
+      'ANTHROPIC_API_KEY',
+      'ANTHROPIC_BASE_URL',
+      'ANTHROPIC_AUTH_TOKEN',
+      'ANTHROPIC_MODEL',
+      'ANTHROPIC_DEFAULT_HAIKU_MODEL',
+      'ANTHROPIC_DEFAULT_SONNET_MODEL',
+      'ANTHROPIC_DEFAULT_OPUS_MODEL',
+    ] as const
+
+    const cleanEnv = { ...process.env }
+    if (this.shouldStripInheritedProviderEnv()) {
+      for (const key of PROVIDER_ENV_KEYS) {
+        delete cleanEnv[key]
+      }
+    }
+
+    return {
+      ...cleanEnv,
+      CLAUDE_CODE_ENABLE_TASKS: '1',
+      CALLER_DIR: workDir,
+      PWD: workDir,
+      // Tell the CLI entrypoint to skip project .env loading. Provider env
+      // should come from Desktop-managed config or inherited launch env, not
+      // be reintroduced from the repo's .env file.
+      CC_HAHA_SKIP_DOTENV: '1',
+    }
+  }
+
+  private shouldStripInheritedProviderEnv(): boolean {
+    const configDir =
+      process.env.CLAUDE_CONFIG_DIR || path.join(os.homedir(), '.claude')
+    const ccHahaDir = path.join(configDir, 'cc-haha')
+    const providersIndexPath = path.join(ccHahaDir, 'providers.json')
+    const settingsPath = path.join(ccHahaDir, 'settings.json')
+
+    if (fs.existsSync(providersIndexPath)) {
+      return true
+    }
+
+    try {
+      const raw = fs.readFileSync(settingsPath, 'utf-8')
+      const parsed = JSON.parse(raw) as { env?: Record<string, string> }
+      const env = parsed.env ?? {}
+      return [
+        'ANTHROPIC_API_KEY',
+        'ANTHROPIC_BASE_URL',
+        'ANTHROPIC_AUTH_TOKEN',
+        'ANTHROPIC_MODEL',
+        'ANTHROPIC_DEFAULT_HAIKU_MODEL',
+        'ANTHROPIC_DEFAULT_SONNET_MODEL',
+        'ANTHROPIC_DEFAULT_OPUS_MODEL',
+      ].some((key) => typeof env[key] === 'string' && env[key]!.trim().length > 0)
+    } catch {
+      return false
+    }
+  }
+
   private resolveBundledCliPath(): string | null {
     // 桌面端 P0+P2 之后只有一个合并的 sidecar 二进制 —— `claude-sidecar`，
     // 它通过第一个 positional 参数 (server / cli) 选模式。当前进程要么
@@ -515,6 +554,13 @@ export class ConversationService {
   private resolveCliArgs(baseArgs: string[]): string[] {
     const cliCommand = process.env.CLAUDE_CLI_PATH || this.resolveBundledCliPath()
     if (!cliCommand) {
+      if (process.platform === 'win32') {
+        return [
+          process.execPath,
+          path.resolve(import.meta.dir, '../../entrypoints/cli.tsx'),
+          ...baseArgs,
+        ]
+      }
       return [path.resolve(import.meta.dir, '../../../bin/claude-haha'), ...baseArgs]
     }
 

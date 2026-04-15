@@ -3,7 +3,7 @@
  */
 
 const ALLOWED_ORIGIN_RE =
-  /^(?:https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?|tauri:\/\/localhost|https:\/\/tauri\.localhost)$/
+  /^(?:https?:\/\/(?:localhost|127\.0\.0\.1|tauri\.localhost)(?::\d+)?|tauri:\/\/localhost|asset:\/\/localhost)$/
 
 export function corsHeaders(origin?: string | null): Record<string, string> {
   // Allow localhost origins (http/https) and Tauri WebView origins

@@ -11,7 +11,6 @@ import { TabBar } from './TabBar'
 import { useTabStore, SETTINGS_TAB_ID } from '../../stores/tabStore'
 import { useChatStore } from '../../stores/chatStore'
 import { useTranslation } from '../../i18n'
-import { providersApi } from '../../api/providers'
 
 export function AppShell() {
   const fetchSettings = useSettingsStore((s) => s.fetchAll)

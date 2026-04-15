@@ -43,6 +43,11 @@
     "active": true,
     "targets": "all",
     "createUpdaterArtifacts": true,
+    "windows": {
+      "nsis": {
+        "installerHooks": "windows-installer-hooks.nsh"
+      }
+    },
     "externalBin": [
       "binaries/claude-sidecar"
     ],
