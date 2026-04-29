@@ -1,0 +1,344 @@
+# Instincts generated from https://github.com/JamesWilliam1977/claude-code-haha
+# Generated: 2026-04-29T05:43:52.756Z
+# Version: 2.0
+# NOTE: This file supplements (does not replace) any existing curated instincts.
+# High-confidence manually curated instincts should be preserved alongside these.
+
+---
+id: claude-code-haha-commit-conventional
+trigger: "when writing a commit message"
+confidence: 0.85
+domain: git
+source: repo-analysis
+source_repo: https://github.com/JamesWilliam1977/claude-code-haha
+---
+
+# Claude Code Haha Commit Conventional
+
+## Action
+
+Use conventional commit format with prefixes: docs, fix
+
+## Evidence
+
+- 3 commits analyzed
+- Detected conventional commit pattern
+- Examples: fix: keep desktop app running from tray after close, docs: make issue reports actionable for desktop triage
+
+---
+id: claude-code-haha-commit-length
+trigger: "when writing a commit message"
+confidence: 0.6
+domain: git
+source: repo-analysis
+source_repo: https://github.com/JamesWilliam1977/claude-code-haha
+---
+
+# Claude Code Haha Commit Length
+
+## Action
+
+Keep commit messages concise (~47 characters)
+
+## Evidence
+
+- Average commit message length: 47 chars
+- Based on 3 commits
+
+---
+id: claude-code-haha-naming-files
+trigger: "when creating a new file"
+confidence: 0.8
+domain: code-style
+source: repo-analysis
+source_repo: https://github.com/JamesWilliam1977/claude-code-haha
+---
+
+# Claude Code Haha Naming Files
+
+## Action
+
+Use PascalCase naming convention
+
+## Evidence
+
+- Analyzed file naming patterns in repository
+- Dominant pattern: PascalCase
+
+---
+id: claude-code-haha-import-relative
+trigger: "when importing modules"
+confidence: 0.75
+domain: code-style
+source: repo-analysis
+source_repo: https://github.com/JamesWilliam1977/claude-code-haha
+---
+
+# Claude Code Haha Import Relative
+
+## Action
+
+Use relative imports for project files
+
+## Evidence
+
+- Import analysis shows relative import pattern
+- Example: import { x } from '../lib/x'
+
+---
+id: claude-code-haha-export-style
+trigger: "when exporting from a module"
+confidence: 0.7
+domain: code-style
+source: repo-analysis
+source_repo: https://github.com/JamesWilliam1977/claude-code-haha
+---
+
+# Claude Code Haha Export Style
+
+## Action
+
+Prefer named exports
+
+## Evidence
+
+- Export pattern analysis
+- Dominant style: named
+
+---
+id: claude-code-haha-test-separate
+trigger: "when writing tests"
+confidence: 0.8
+domain: testing
+source: repo-analysis
+source_repo: https://github.com/JamesWilliam1977/claude-code-haha
+---
+
+# Claude Code Haha Test Separate
+
+## Action
+
+Place tests in the tests/ or __tests__/ directory, mirroring src structure
+
+## Evidence
+
+- Separate test directory pattern detected
+- Tests live in dedicated test folders
+
+---
+id: claude-code-haha-workflow-update-documentation-files
+trigger: "when doing update documentation files"
+confidence: 0.6
+domain: workflow
+source: repo-analysis
+source_repo: https://github.com/JamesWilliam1977/claude-code-haha
+---
+
+# Claude Code Haha Workflow Update Documentation Files
+
+## Action
+
+Follow the update-documentation-files workflow:
+1. Edit one or more markdown files in the docs or .github/ISSUE_TEMPLATE directories.
+2. Add or modify sections, fields, or callouts as needed.
+3. Verify formatting and content alignment (e.g., bilingual consistency, actionable fields).
+4. Optionally check rendering or output if applicable.
+
+## Evidence
+
+- Workflow detected from commit patterns
+- Frequency: ~2x per month
+- Files: .github/ISSUE_TEMPLATE/bug_report.md, .github/ISSUE_TEMPLATE/question.md, README.en.md
+
+---
+id: claude-code-haha-instinct-file-naming
+trigger: "When creating or renaming a source file"
+confidence: 0.8
+domain: code-style
+source: repo-analysis
+source_repo: JamesWilliam1977/claude-code-haha
+---
+
+# Claude Code Haha Instinct File Naming
+
+## Action
+
+Use PascalCase for file names
+
+## Evidence
+
+- Pattern in codeStyle.namingConventions.files: PascalCase
+
+---
+id: claude-code-haha-instinct-function-naming
+trigger: "When defining a function"
+confidence: 0.8
+domain: code-style
+source: repo-analysis
+source_repo: JamesWilliam1977/claude-code-haha
+---
+
+# Claude Code Haha Instinct Function Naming
+
+## Action
+
+Use camelCase for function names
+
+## Evidence
+
+- Pattern in codeStyle.namingConventions.functions: camelCase
+
+---
+id: claude-code-haha-instinct-class-naming
+trigger: "When defining a class or struct"
+confidence: 0.8
+domain: code-style
+source: repo-analysis
+source_repo: JamesWilliam1977/claude-code-haha
+---
+
+# Claude Code Haha Instinct Class Naming
+
+## Action
+
+Use PascalCase for class/struct names
+
+## Evidence
+
+- Pattern in codeStyle.namingConventions.classes: PascalCase
+
+---
+id: claude-code-haha-instinct-constant-naming
+trigger: "When defining a constant"
+confidence: 0.8
+domain: code-style
+source: repo-analysis
+source_repo: JamesWilliam1977/claude-code-haha
+---
+
+# Claude Code Haha Instinct Constant Naming
+
+## Action
+
+Use SCREAMING_SNAKE_CASE for constant names
+
+## Evidence
+
+- Pattern in codeStyle.namingConventions.constants: SCREAMING_SNAKE_CASE
+
+---
+id: claude-code-haha-instinct-import-style
+trigger: "When importing modules"
+confidence: 0.8
+domain: code-style
+source: repo-analysis
+source_repo: JamesWilliam1977/claude-code-haha
+---
+
+# Claude Code Haha Instinct Import Style
+
+## Action
+
+Use relative import paths
+
+## Evidence
+
+- Pattern in codeStyle.importStyle: relative
+
+---
+id: claude-code-haha-instinct-export-style
+trigger: "When exporting functions or types"
+confidence: 0.8
+domain: code-style
+source: repo-analysis
+source_repo: JamesWilliam1977/claude-code-haha
+---
+
+# Claude Code Haha Instinct Export Style
+
+## Action
+
+Use named exports
+
+## Evidence
+
+- Pattern in codeStyle.exportStyle: named
+
+---
+id: claude-code-haha-instinct-test-location
+trigger: "When adding or updating tests"
+confidence: 0.7
+domain: testing
+source: repo-analysis
+source_repo: JamesWilliam1977/claude-code-haha
+---
+
+# Claude Code Haha Instinct Test Location
+
+## Action
+
+Place test files in a separate directory from source files
+
+## Evidence
+
+- Pattern in architecture.folderStructure.testLocation: separate
+
+---
+id: claude-code-haha-instinct-git-commit-format
+trigger: "When writing a commit message"
+confidence: 0.9
+domain: git
+source: repo-analysis
+source_repo: JamesWilliam1977/claude-code-haha
+---
+
+# Claude Code Haha Instinct Git Commit Format
+
+## Action
+
+Use conventional commit prefixes (e.g., 'fix:', 'docs:') followed by a concise description
+
+## Evidence
+
+- Pattern in commits.type: conventional
+- Examples: 'fix: keep desktop app running from tray after close', 'docs: add README star history section'
+
+---
+id: claude-code-haha-instinct-git-commit-length
+trigger: "When writing a commit message"
+confidence: 0.7
+domain: git
+source: repo-analysis
+source_repo: JamesWilliam1977/claude-code-haha
+---
+
+# Claude Code Haha Instinct Git Commit Length
+
+## Action
+
+Keep commit messages concise (average ~47 characters)
+
+## Evidence
+
+- Pattern in commits.averageLength: 47
+
+---
+id: claude-code-haha-instinct-update-documentation-files
+trigger: "When someone wants to improve documentation or issue reporting templates"
+confidence: 0.9
+domain: workflow
+source: repo-analysis
+source_repo: JamesWilliam1977/claude-code-haha
+---
+
+# Claude Code Haha Instinct Update Documentation Files
+
+## Action
+
+Edit markdown files in docs or .github/ISSUE_TEMPLATE, update sections/fields/callouts, verify formatting and content alignment, and optionally check rendering
+
+## Evidence
+
+- Workflow: update-documentation-files
+- Commits: 'docs: make issue reports actionable for desktop triage', 'docs: add README star history section'
+
