@@ -27,7 +27,7 @@ Sidebar grouping comes from the `sections` array in the generator — register a
 
 `src/styles/base.css` holds shared tokens. The landing page uses the user-provided Wandor direction throughout: warm paper illustrations, a white-faded ambient video, Geist typography, Special Elite wordmark, liquid glass surfaces and black capsule controls. Keep the entire landing journey consistent, including features, onboarding, FAQ and download. Documentation uses the same paper, illustration, typography and terracotta palette, scoped through `src/docs/doc-wandor.css` so its reading surfaces remain legible in both themes. The public display name is `cc-haha`; preserve legacy executable paths and release filenames when they must match actual artifacts. Rules:
 
-English is the default language for the landing page and documentation. `/en` and `/en/start` are the English entries; `/` and `/start` remain explicit Chinese routes. A saved manual language choice takes precedence when opening `/`.
+On a first visit to `/`, show Chinese when the browser's preferred language is Chinese; use English for every other language. `/en` and `/en/start` are the English entries; `/` and `/start` remain Chinese routes. A saved manual language choice takes precedence when opening `/`.
 
 - Use tokens (`--surface-*`, `--text-*`, `--border*`, `--brand*`, `--sp-*`, `--fs-*`, `--r-*`) rather than literal values. A raw hex in a component is a bug.
 - Keep screenshots flat and legible. Never stack, tilt, blur, or auto-rotate product UI as the main evidence.

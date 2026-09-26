@@ -234,7 +234,7 @@ async function checkAppScreenshotFiles() {
 
 /**
  * 语言分流的判定规则在两处各有一份：src/lib/locale.js（可测的模块）和 index.html 里的内联
- * 副本（首帧就要跳，等不到模块加载）。锁住 storage key、默认语言及根路径边界。
+ * 副本（首帧就要跳，等不到模块加载）。锁住 storage key、浏览器语言读取及根路径边界。
  */
 async function checkLocaleRedirect() {
   const problems = []
@@ -253,8 +253,12 @@ async function checkLocaleRedirect() {
     problems.push(`index.html: 内联语言脚本没有用 '${storageKey}'，与 src/lib/locale.js 不一致`)
   }
 
-  if (!shellSource.includes(`var locale = '${defaultLocale}'`)) {
-    problems.push(`index.html: 内联语言脚本的默认语言与 src/lib/locale.js 的 ${defaultLocale} 不一致`)
+  if (!shellSource.includes('navigator.languages && navigator.languages[0]') || !shellSource.includes('navigator.language')) {
+    problems.push('index.html: 内联语言脚本缺少浏览器首选语言读取')
+  }
+
+  if (!shellSource.includes(`? 'zh' : '${defaultLocale}'`)) {
+    problems.push(`index.html: 内联语言脚本的非中文默认语言与 src/lib/locale.js 的 ${defaultLocale} 不一致`)
   }
 
   // 少了这道判断，/en/start 这类地址也会被卷进分流。
